@@ -10,4 +10,5 @@ dags/utils/.ipynb_checkpoints/
 dags/utils/.pytest_cache/
 dags/.ipynb_checkpoints/
 dags/__pycache__
+.env
 
