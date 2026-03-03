@@ -45,8 +45,12 @@ async def run_analysis(server_script_path: str, anthropic_api_key: str = None) -
             args=[server_script_path],
             env=None,  # heredar entorno del proceso padre
         )
+        # Abrir un archivo real para stderr del subproceso MCP.
+        # Necesario porque Airflow LocalExecutor usa fork() y
+        # sys.stderr pierde su file descriptor real.
+        errlog = open(os.path.join("/tmp", "mcp_server_stderr.log"), "w")
         stdio_transport = await exit_stack.enter_async_context(
-            stdio_client(server_params)
+            stdio_client(server_params, errlog=errlog)
         )
         read_stream, write_stream = stdio_transport
         session = await exit_stack.enter_async_context(
