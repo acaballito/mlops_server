@@ -33,6 +33,8 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKEND: 'airflow.api.auth.backend.basic_auth'
     _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-scikit-learn mlflow mcp anthropic}
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://airflow:airflow@postgres/airflow}
+    MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlserver-mlflow:5000}
 
   volumes:
     - ./dags:/opt/airflow/dags

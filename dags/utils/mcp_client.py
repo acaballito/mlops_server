@@ -12,23 +12,56 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 
-ANALYSIS_PROMPT = """You are an ML engineer analyzing experiment results from a breast cancer
-classification pipeline. The pipeline uses sklearn's breast cancer dataset with a
-Pipeline(StandardScaler -> PCA -> LogisticRegression) trained via GridSearchCV.
+ANALYSIS_PROMPT = """Eres un ingeniero de ML analizando resultados de un pipeline de clasificacion
+de cancer de mama. El pipeline usa el dataset breast cancer de sklearn con
+Pipeline(StandardScaler -> PCA -> LogisticRegression) entrenado via GridSearchCV.
+Los experimentos se registran en PostgreSQL y MLflow.
 
-Please perform a comprehensive analysis by:
-1. First, retrieve the experiment results from the database
-2. Then, get the dataset statistics to understand the data
-3. Finally, get the best model information
+Realiza un analisis completo:
+1. Obtener los resultados de experimentos de PostgreSQL
+2. Obtener las estadisticas del dataset
+3. Obtener la informacion del mejor modelo de PostgreSQL
+4. Consultar MLflow para el historial completo de experimentos con parametros y metricas
+5. Revisar el MLflow Model Registry para las versiones registradas del modelo
+6. Comparar los mejores runs en MLflow
+7. Leer los artefactos (confusion matrix y classification report) de los runs con
+   mejor y peor rendimiento para entender los patrones de error
+8. Ejecutar un analisis de drift para verificar si el rendimiento es estable
 
-After gathering all data, produce a structured analysis report with these sections:
-- Executive Summary: one paragraph overview of findings
-- Experiment History: trends across experiments, how hyperparameters changed
-- Best Model Analysis: why the best configuration works well
-- Dataset Characteristics: relevant observations about the feature distributions
-- Recommendations: concrete next steps to improve model performance
+Genera el reporte EN ESPANOL con DOS secciones claramente diferenciadas:
 
-Format the report in clean markdown. Be specific with numbers from the actual data."""
+---
+
+## PARTE 1: RESUMEN PARA DIRECCION
+
+Escrito para directivos y stakeholders no tecnicos. Maximo 1 pagina.
+- Situacion actual del modelo en una frase
+- Nivel de fiabilidad: que tan confiable es el modelo para tomar decisiones clinicas
+- Riesgos identificados: en lenguaje de negocio, sin tecnicismos
+  (ej: "el modelo falla en detectar 1 de cada 100 tumores malignos")
+- Acciones recomendadas: que debe aprobar o decidir la direccion
+- Impacto si no se actua: que pasa si no se toman las acciones recomendadas
+
+NO usar terminos como "PCA", "regularizacion", "hiperparametros", "GridSearchCV",
+"confusion matrix", "F1-score", "cross-validation" ni ningun otro tecnicismo.
+Usar lenguaje claro y directo que cualquier persona pueda entender.
+
+---
+
+## PARTE 2: ANALISIS TECNICO PARA EQUIPO DE MLOPS Y DATA SCIENCE
+
+Escrito para el equipo tecnico. Detallado y especifico con numeros reales.
+- Historial de experimentos: tendencias, evolucion de hiperparametros
+- Analisis de MLflow: insights de metricas y parametros
+- Estado del Model Registry: versiones, stages, que promover
+- Analisis de errores: falsos positivos vs falsos negativos, contexto medico
+  (un falso negativo significa no detectar un tumor maligno)
+- Analisis de drift: estabilidad del rendimiento, cambios en hiperparametros
+- Analisis del mejor modelo: por que funciona la mejor configuracion
+- Caracteristicas del dataset: observaciones sobre distribuciones
+- Recomendaciones tecnicas: pasos concretos para mejorar el modelo
+
+Formato markdown limpio. Usa numeros reales de los datos."""
 
 
 async def run_analysis(server_script_path: str, anthropic_api_key: str = None) -> str:
@@ -158,7 +191,7 @@ async def _run_mock_analysis(
     print("[MCP] Running in MOCK mode (no API key). "
           "Calling all tools via MCP protocol...")
 
-    # Llamar cada herramienta via MCP (estas son llamadas reales al servidor)
+    # --- Herramientas PostgreSQL ---
     print("[MCP] Calling tool: get_experiment_results")
     experiments_result = await session.call_tool(
         "get_experiment_results", {"limit": 10}
@@ -173,6 +206,35 @@ async def _run_mock_analysis(
     model_result = await session.call_tool("get_best_model_info", {})
     model_data = _extract_text(model_result)
 
+    # --- Herramientas MLflow ---
+    print("[MCP] Calling tool: get_mlflow_experiments")
+    mlflow_exp_result = await session.call_tool("get_mlflow_experiments", {})
+    mlflow_exp_data = _extract_text(mlflow_exp_result)
+
+    print("[MCP] Calling tool: get_mlflow_model_versions")
+    mlflow_versions_result = await session.call_tool(
+        "get_mlflow_model_versions", {}
+    )
+    mlflow_versions_data = _extract_text(mlflow_versions_result)
+
+    print("[MCP] Calling tool: get_mlflow_run_comparison")
+    mlflow_comparison_result = await session.call_tool(
+        "get_mlflow_run_comparison", {}
+    )
+    mlflow_comparison_data = _extract_text(mlflow_comparison_result)
+
+    print("[MCP] Calling tool: get_mlflow_run_artifacts (best run)")
+    artifacts_result = await session.call_tool(
+        "get_mlflow_run_artifacts", {"run_id": "26844eb5"}
+    )
+    artifacts_data = _extract_text(artifacts_result)
+
+    print("[MCP] Calling tool: get_experiment_drift_analysis")
+    drift_result = await session.call_tool(
+        "get_experiment_drift_analysis", {}
+    )
+    drift_data = _extract_text(drift_result)
+
     # Ensamblar reporte con los datos reales obtenidos via MCP
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     report = f"""# Reporte de Analisis ML - Generado via MCP
@@ -186,14 +248,14 @@ async def _run_mock_analysis(
 Este reporte fue generado automaticamente utilizando el protocolo MCP
 (Model Context Protocol). El cliente MCP conecto al servidor MLOps,
 descubrio las herramientas disponibles ({len(available_tools)} tools),
-y las ejecuto para recopilar datos de la infraestructura.
+y las ejecuto para recopilar datos de PostgreSQL y MLflow.
 
 En un escenario con API key configurada, Claude analizaria estos datos
 y generaria insights automaticos sobre el rendimiento del modelo.
 
 ---
 
-## Resultados de Experimentos
+## Resultados de Experimentos (PostgreSQL)
 
 Datos obtenidos via `get_experiment_results`:
 
@@ -217,6 +279,46 @@ Datos obtenidos via `get_dataset_statistics`:
 
 ---
 
+## MLflow - Historial de Experimentos
+
+Datos obtenidos via `get_mlflow_experiments`:
+
+{mlflow_exp_data}
+
+---
+
+## MLflow - Registro de Modelos
+
+Datos obtenidos via `get_mlflow_model_versions`:
+
+{mlflow_versions_data}
+
+---
+
+## MLflow - Comparacion de Runs
+
+Datos obtenidos via `get_mlflow_run_comparison`:
+
+{mlflow_comparison_data}
+
+---
+
+## Analisis de Errores del Modelo
+
+Datos obtenidos via `get_mlflow_run_artifacts`:
+
+{artifacts_data}
+
+---
+
+## Analisis de Drift
+
+Datos obtenidos via `get_experiment_drift_analysis`:
+
+{drift_data}
+
+---
+
 ## Herramientas MCP Utilizadas
 
 | Herramienta | Descripcion |
@@ -233,7 +335,7 @@ Datos obtenidos via `get_dataset_statistics`:
 Este reporte demuestra el flujo completo del protocolo MCP:
 1. El cliente MCP inicio el servidor como subproceso (stdio transport)
 2. Descubrio las herramientas disponibles via `list_tools()`
-3. Ejecuto cada herramienta via `call_tool()` (consultas reales a PostgreSQL)
+3. Ejecuto cada herramienta via `call_tool()` (consultas reales a PostgreSQL y MLflow)
 4. Ensamblo los resultados en este reporte
 
 Con una API key de Anthropic configurada (`ANTHROPIC_API_KEY`), Claude
