@@ -54,6 +54,8 @@ cada vez que se ejecuta el pipeline de entrenamiento.
                     |  - get_mlflow_experiments     |
                     |  - get_mlflow_model_versions  |
                     |  - get_mlflow_run_comparison  |
+                    |  - get_mlflow_run_artifacts   |
+                    |  - get_experiment_drift_analysis|
                     +-------------------------------+
                         |                   |
                         v                   v
@@ -69,7 +71,7 @@ cada vez que se ejecuta el pipeline de entrenamiento.
 
 1. El DAG de Airflow ejecuta la tarea `generate_analysis`
 2. La tarea inicia el **cliente MCP**, que a su vez lanza el **servidor MCP** como subproceso
-3. El cliente descubre las herramientas disponibles via `list_tools()` (6 herramientas)
+3. El cliente descubre las herramientas disponibles via `list_tools()` (8 herramientas)
 4. En modo real: Claude decide que herramientas llamar y en que orden
 5. En modo mock: el cliente llama todas las herramientas secuencialmente
 6. Las herramientas consultan PostgreSQL y MLflow
@@ -126,6 +128,8 @@ El Model Registry permite gestionar el ciclo de vida del modelo:
 | `get_mlflow_experiments` | Lista runs con parametros y metricas |
 | `get_mlflow_model_versions` | Consulta el Model Registry (versiones, stage, estado) |
 | `get_mlflow_run_comparison` | Compara los mejores runs por accuracy |
+| `get_mlflow_run_artifacts` | Lee artefactos (confusion matrix, classification report) de un run |
+| `get_experiment_drift_analysis` | Analiza tendencias de rendimiento y estabilidad de hiperparametros |
 
 ---
 
@@ -134,7 +138,7 @@ El Model Registry permite gestionar el ciclo de vida del modelo:
 | Archivo | Descripcion |
 |---|---|
 | `dags/mcp_model_analysis.py` | DAG de Airflow (05_mcp_model_analysis) con dos tareas |
-| `dags/utils/mcp_server.py` | Servidor MCP con 6 herramientas (3 PostgreSQL + 3 MLflow) |
+| `dags/utils/mcp_server.py` | Servidor MCP con 8 herramientas (3 PostgreSQL + 5 MLflow) |
 | `dags/utils/mcp_client.py` | Cliente MCP que conecta al servidor y usa Claude (o mock) |
 | `dags/utils/mlflow_config.py` | Configuracion centralizada de MLflow y base de datos |
 | `dags/utils/simulate_experiments.py` | Script de simulacion con datos incrementales |
@@ -235,7 +239,7 @@ docker compose down && docker compose up -d
 ```
 
 En modo real:
-- Claude recibe las 6 herramientas disponibles y decide cuales usar
+- Claude recibe las 8 herramientas disponibles y decide cuales usar
 - El LLM genera un analisis inteligente con insights y recomendaciones
 - El flujo MCP es identico, pero con razonamiento de IA real
 - Claude puede cruzar datos de PostgreSQL y MLflow para un analisis mas completo
